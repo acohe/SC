@@ -1,0 +1,320 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Statecraft Labs</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      background: #050508;
+      width: 100vw;
+      height: 100vh;
+      overflow: hidden;
+      font-family: -apple-system, BlinkMacSystemFont, 'Helvetica Neue', Helvetica, Arial, sans-serif;
+    }
+
+    #snow {
+      position: fixed;
+      top: 0;
+      left: 0;
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    #logo-wrapper {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 28px;
+      cursor: grab;
+      user-select: none;
+      z-index: 10;
+    }
+
+    #logo-wrapper:active {
+      cursor: grabbing;
+    }
+
+    #logo-canvas {
+      display: block;
+      pointer-events: none;
+    }
+
+    #wordmark {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 4px;
+    }
+
+    #name {
+      font-size: 22px;
+      font-weight: 300;
+      letter-spacing: 0.22em;
+      color: rgba(255, 255, 255, 0.88);
+      text-transform: uppercase;
+    }
+
+    #tld {
+      font-size: 11px;
+      font-weight: 400;
+      letter-spacing: 0.18em;
+      color: rgba(255, 255, 255, 0.28);
+      text-transform: lowercase;
+    }
+  </style>
+</head>
+<body>
+
+<canvas id="snow"></canvas>
+
+<div id="logo-wrapper">
+  <canvas id="logo-canvas"></canvas>
+
+  <div id="wordmark">
+    <div id="name">Statecraft Labs</div>
+    <div id="tld">statecraftlabs.ai</div>
+  </div>
+</div>
+
+<script>
+  // ── Snow / particle system ──────────────────────────────────────────────────
+  const canvas = document.getElementById('snow');
+  const ctx = canvas.getContext('2d');
+
+  let W, H, particles;
+
+  function resize() {
+    W = canvas.width  = window.innerWidth;
+    H = canvas.height = window.innerHeight;
+  }
+
+  function makeParticle() {
+    return {
+      x: Math.random() * W,
+      y: Math.random() * H,
+      r: Math.random() * 1.2 + 0.3,
+      opacity: Math.random() * 0.5 + 0.05,
+      dx: (Math.random() - 0.5) * 0.15,
+      dy: Math.random() * 0.3 + 0.08,
+      wobble: Math.random() * Math.PI * 2,
+      wobbleSpeed: Math.random() * 0.008 + 0.002,
+    };
+  }
+
+  function init() {
+    resize();
+    const count = Math.floor((W * H) / 5000);
+    particles = Array.from({ length: count }, makeParticle);
+  }
+
+  function draw() {
+    ctx.clearRect(0, 0, W, H);
+    for (const p of particles) {
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+      ctx.fillStyle = `rgba(200,210,255,${p.opacity})`;
+      ctx.fill();
+
+      p.wobble += p.wobbleSpeed;
+      p.x += p.dx + Math.sin(p.wobble) * 0.12;
+      p.y += p.dy;
+
+      if (p.y > H + 4) { p.y = -4; p.x = Math.random() * W; }
+      if (p.x < -4)    p.x = W + 4;
+      if (p.x > W + 4) p.x = -4;
+    }
+    requestAnimationFrame(draw);
+  }
+
+  window.addEventListener('resize', () => { resize(); init(); });
+  init();
+  draw();
+
+  // ── Draggable logo ──────────────────────────────────────────────────────────
+  const wrapper = document.getElementById('logo-wrapper');
+
+  // Convert initial centered position to absolute px
+  let posX = window.innerWidth  / 2;
+  let posY = window.innerHeight / 2;
+
+  function applyPos() {
+    wrapper.style.left      = posX + 'px';
+    wrapper.style.top       = posY + 'px';
+    wrapper.style.transform = 'translate(-50%, -50%)';
+  }
+  applyPos();
+
+  let dragging = false;
+  let startMouseX, startMouseY, startPosX, startPosY;
+
+  wrapper.addEventListener('mousedown', e => {
+    dragging = true;
+    startMouseX = e.clientX;
+    startMouseY = e.clientY;
+    startPosX   = posX;
+    startPosY   = posY;
+    e.preventDefault();
+  });
+
+  window.addEventListener('mousemove', e => {
+    if (!dragging) return;
+    posX = startPosX + (e.clientX - startMouseX);
+    posY = startPosY + (e.clientY - startMouseY);
+    applyPos();
+  });
+
+  window.addEventListener('mouseup', () => { dragging = false; });
+
+  // Touch support
+  wrapper.addEventListener('touchstart', e => {
+    const t = e.touches[0];
+    dragging    = true;
+    startMouseX = t.clientX;
+    startMouseY = t.clientY;
+    startPosX   = posX;
+    startPosY   = posY;
+    e.preventDefault();
+  }, { passive: false });
+
+  window.addEventListener('touchmove', e => {
+    if (!dragging) return;
+    const t = e.touches[0];
+    posX = startPosX + (t.clientX - startMouseX);
+    posY = startPosY + (t.clientY - startMouseY);
+    applyPos();
+  });
+
+  window.addEventListener('touchend', () => { dragging = false; });
+
+  // ── 3D Canvas Logo ────────────────────────────────────────────────────────────
+  (function () {
+    const canvas = document.getElementById('logo-canvas');
+    const ctx = canvas.getContext('2d');
+
+    const dpr = window.devicePixelRatio || 1;
+    const DW = 120, DH = 120;
+    canvas.width  = DW * dpr;
+    canvas.height = DH * dpr;
+    canvas.style.width  = DW + 'px';
+    canvas.style.height = DH + 'px';
+    ctx.scale(dpr, dpr);
+    const cx = DW / 2, cy = DH / 2;
+
+    // Each SVG bar is a trapezoid: the parallelogram's corners get clipped by its
+    // bounding box, leaving one long parallel edge (~0.88 units) and one short
+    // one (~0.46 units). hwL/hwS = half-width of wide/narrow face; hh = half-
+    // thickness; hd = thin extrusion depth so they read as flat cards not blocks.
+    const hwL = 0.44, hwS = 0.23, hh = 0.11, hd = 0.04;
+
+    // Wide face at localY=+hh, narrow face at localY=-hh.
+    // After Z-rotation +45° the wide face ends up on the upper-left edge of the
+    // "/" slash, matching the SVG where the full-length tips (C & D vertices of
+    // the original parallelogram) sit on that same upper-left edge.
+    const TRAP_V = [
+      [-hwL, hh,-hd], [ hwL, hh,-hd], [ hwS,-hh,-hd], [-hwS,-hh,-hd], // front 0-3
+      [-hwL, hh, hd], [ hwL, hh, hd], [ hwS,-hh, hd], [-hwS,-hh, hd], // back  4-7
+    ];
+
+    // CCW winding → outward normal via (v1-v0)×(v3-v0); cull when nz ≥ 0
+    const TRAP_F = [
+      [0,1,2,3], // front  (nz < 0)
+      [4,7,6,5], // back   (nz > 0)
+      [0,4,5,1], // wide face top  (+y)
+      [3,2,6,7], // narrow face bottom (-y)
+      [0,3,7,4], // left
+      [1,5,6,2], // right
+    ];
+
+    // flip=true swaps the wide/narrow faces (negates local Y before rotation).
+    // Top bars: parallelogram corners get clipped on the right+bottom of their box.
+    // Bottom bars: clipped on the left+top instead, so the trapezoid is mirrored.
+    function makeBar(tz, tx, ty, flip = false) {
+      const c = Math.cos(tz), s = Math.sin(tz);
+      const fy = flip ? -1 : 1;
+      return TRAP_V.map(([x, y, z]) => [c*x - s*(y*fy) + tx, s*x + c*(y*fy) + ty, z]);
+    }
+
+    const barDefs = [
+      [ Math.PI/4, -0.42,  0.60, false], // upper-left  (/)
+      [ Math.PI/4, -0.44, -0.45, true ], // lower-left  (/) — flipped
+      [ Math.PI/4,  0.43,  0.29, false], // upper-right (/)
+      [-Math.PI/4,  0.43, -0.45, true ], // lower-right (\) — flipped
+    ];
+
+    const baseVerts = [], allFaces = [];
+    for (const [tz, tx, ty, flip] of barDefs) {
+      const off = baseVerts.length;
+      baseVerts.push(...makeBar(tz, tx, ty, flip));
+      for (const f of TRAP_F) allFaces.push(f.map(i => i + off));
+    }
+
+    const rawL = [0.2, 0.8, -1.5];
+    const lLen = Math.sqrt(rawL.reduce((s, v) => s + v * v, 0));
+    const light = rawL.map(v => v / lLen);
+
+    const scale = 50, fov = 4;
+    let angle = 0;
+
+    function render() {
+      angle += 0.008;
+      const cosA = Math.cos(angle), sinA = Math.sin(angle);
+
+      const verts = baseVerts.map(([x, y, z]) => [
+        cosA*x + sinA*z, y, -sinA*x + cosA*z,
+      ]);
+
+      const proj = verts.map(([x, y, z]) => {
+        const d = z + fov;
+        return [cx + x/d*fov*scale, cy - y/d*fov*scale];
+      });
+
+      const visible = [];
+      for (const face of allFaces) {
+        const rv = face.map(i => verts[i]);
+        const e1 = rv[1].map((v, i) => v - rv[0][i]);
+        const e2 = rv[3].map((v, i) => v - rv[0][i]);
+        const nx = e1[1]*e2[2] - e1[2]*e2[1];
+        const ny = e1[2]*e2[0] - e1[0]*e2[2];
+        const nz = e1[0]*e2[1] - e1[1]*e2[0];
+        if (nz >= 0) continue;
+
+        const nLen = Math.sqrt(nx*nx + ny*ny + nz*nz);
+        const dot  = Math.max(0, (nx*light[0] + ny*light[1] + nz*light[2]) / nLen);
+        const shade = 0.15 + 0.85 * dot;
+        const avgZ  = face.reduce((s, i) => s + verts[i][2], 0) / face.length;
+        visible.push({ face, avgZ, shade });
+      }
+
+      visible.sort((a, b) => b.avgZ - a.avgZ);
+
+      ctx.clearRect(0, 0, DW, DH);
+      for (const { face, shade } of visible) {
+        const pts = face.map(i => proj[i]);
+        ctx.beginPath();
+        ctx.moveTo(pts[0][0], pts[0][1]);
+        for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i][0], pts[i][1]);
+        ctx.closePath();
+        const alpha = (0.3 + 0.6 * shade).toFixed(2);
+        ctx.fillStyle = `rgba(200, 210, 255, ${alpha})`;
+        ctx.fill();
+      }
+
+      requestAnimationFrame(render);
+    }
+
+    render();
+  }());
+</script>
+</body>
+</html>
